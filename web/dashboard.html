@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TeraFast · Activity Dashboard</title>
+<meta name="description" content="TeraFast bot ka live activity log — file uploads aur network errors.">
+<style>
+  :root {
+    --bg: #020617;
+    --panel: #0f172a;
+    --panel-2: #1e293b;
+    --border: #1e293b;
+    --border-2: #334155;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --dim: #64748b;
+    --emerald: #34d399;
+    --emerald-dim: rgba(52, 211, 153, .12);
+    --amber: #fbbf24;
+    --amber-dim: rgba(251, 191, 36, .12);
+    --red: #f87171;
+    --red-dim: rgba(248, 113, 113, .12);
+    --slate: #cbd5e1;
+    --slate-dim: rgba(148, 163, 184, .14);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .wrap { width: 100%; max-width: 60rem; margin: 0 auto; padding: 0 1rem; flex: 1; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+  /* ---------- header ---------- */
+  header.page { padding: 2rem 0 1.25rem; }
+  .head-row { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; }
+  .brand { display: flex; gap: .75rem; align-items: center; }
+  .logo {
+    width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+    background: var(--emerald-dim);
+    border: 1px solid rgba(52, 211, 153, .4);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--emerald); font-weight: 700; font-size: 20px;
+  }
+  h1 { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); font-size: .8rem; }
+  .controls { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+  .pill {
+    display: inline-flex; align-items: center; gap: .4rem;
+    border-radius: 999px; padding: .25rem .75rem; font-size: .72rem; font-weight: 500;
+    border: 1px solid var(--border-2); background: var(--panel); color: var(--muted);
+  }
+  .pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.live { color: var(--emerald); border-color: rgba(52,211,153,.4); background: var(--emerald-dim); }
+  .pill.live .dot { animation: pulse 1.6s infinite; }
+  .pill.err { color: var(--red); border-color: rgba(248,113,113,.4); background: var(--red-dim); }
+  .pill.err .dot { animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+  button.btn {
+    display: inline-flex; align-items: center; gap: .4rem;
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--border-2); border-radius: 8px;
+    padding: .4rem .7rem; font-size: .75rem; font-weight: 500;
+    cursor: pointer; min-height: 32px;
+  }
+  button.btn:hover { background: var(--panel-2); }
+  button.btn:disabled { opacity: .5; cursor: not-allowed; }
+  .updated { color: var(--dim); font-size: .7rem; margin-top: .5rem; }
+
+  /* ---------- stats ---------- */
+  .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: .75rem; }
+  @media (min-width: 64rem) { .stats { grid-template-columns: repeat(4, 1fr); } }
+  .stat {
+    background: rgba(15, 23, 42, .7); border: 1px solid var(--border);
+    border-radius: 12px; padding: .9rem 1rem;
+  }
+  .stat .label { display: flex; gap: .45rem; align-items: center; color: var(--muted); font-size: .7rem; }
+  .stat .value { font-size: 1.4rem; font-weight: 600; margin-top: .35rem; }
+  .stat.uploads { border-color: rgba(52,211,153,.2); } .stat.uploads .value, .stat.uploads .label svg { color: var(--emerald); }
+  .stat.failed { border-color: rgba(251,191,36,.2); } .stat.failed .value, .stat.failed .label svg { color: var(--amber); }
+  .stat.network { border-color: rgba(248,113,113,.2); } .stat.network .value, .stat.network .label svg { color: var(--red); }
+  .stat.last .value { color: var(--text); font-size: 1.1rem; }
+  .stat.last .label svg { color: var(--muted); }
+
+  /* ---------- filters ---------- */
+  .filters { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1.25rem 0 .75rem; }
+  .chip {
+    background: var(--panel); color: var(--muted);
+    border: 1px solid var(--border-2); border-radius: 999px;
+    padding: .3rem .85rem; font-size: .72rem; font-weight: 500; cursor: pointer;
+  }
+  .chip:hover { color: var(--text); }
+  .chip.active {
+    background: var(--emerald-dim); color: var(--emerald);
+    border-color: rgba(52,211,153,.4);
+  }
+  .chip .count { font-size: .62rem; background: var(--panel-2); border-radius: 999px; padding: .05rem .45rem; margin-left: .3rem; }
+  .chip.active .count { background: rgba(52,211,153,.2); color: #a7f3d0; }
+
+  /* ---------- feed ---------- */
+  .panel { background: rgba(15, 23, 42, .7); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .panel-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: .7rem 1rem; border-bottom: 1px solid var(--border);
+    font-weight: 500; font-size: .85rem;
+  }
+  .panel-head .live-tag { color: var(--emerald); display: inline-flex; gap: .4rem; align-items: center; }
+  ul.feed { list-style: none; max-height: 28rem; overflow-y: auto; }
+  ul.feed::-webkit-scrollbar { width: 6px; }
+  ul.feed::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 999px; }
+  ul.feed::-webkit-scrollbar-track { background: transparent; }
+  li.event {
+    display: flex; gap: .75rem; align-items: flex-start;
+    padding: .7rem 1rem; border-bottom: 1px solid rgba(30,41,59,.7);
+    transition: background .4s;
+  }
+  li.event:last-child { border-bottom: none; }
+  li.event.flash { background: rgba(52, 211, 153, .07); }
+  .ebox {
+    width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0; margin-top: 2px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ebox.upload { background: var(--emerald-dim); color: var(--emerald); border: 1px solid rgba(52,211,153,.3); }
+  .ebox.upload_failed { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(251,191,36,.3); }
+  .ebox.network_error { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,.3); }
+  .ebox.info { background: var(--slate-dim); color: var(--slate); border: 1px solid rgba(148,163,184,.3); }
+  .ebody { flex: 1; min-width: 0; }
+  .emsg { font-size: .85rem; word-break: break-word; }
+  .emeta { display: flex; flex-wrap: wrap; gap: .3rem .6rem; align-items: center; margin-top: .25rem; font-size: .68rem; color: var(--muted); }
+  .tag { border-radius: 4px; padding: .1rem .4rem; font-weight: 500; }
+  .tag.upload { background: var(--emerald-dim); color: #a7f3d0; }
+  .tag.upload_failed { background: var(--amber-dim); color: #fde68a; }
+  .tag.network_error { background: var(--red-dim); color: #fecaca; }
+  .tag.info { background: var(--slate-dim); color: var(--slate); }
+  .src { background: var(--panel-2); color: var(--muted); border-radius: 4px; padding: .1rem .4rem; }
+  .fname { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .eerr { margin-top: .3rem; color: rgba(252,165,165,.8); font-size: .68rem;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  a.tlink { color: var(--emerald); text-decoration: none; }
+  a.tlink:hover { text-decoration: underline; }
+  .etime { flex-shrink: 0; color: var(--dim); font-size: .68rem; margin-top: 3px; white-space: nowrap; }
+
+  .empty { padding: 3rem 1rem; text-align: center; color: var(--muted); font-size: .85rem; }
+  .empty svg { color: var(--dim); margin-bottom: .75rem; }
+  .skeleton { height: 60px; margin: .5rem 1rem; border-radius: 8px; background: var(--panel-2); opacity: .5; animation: pulse 1.4s infinite; }
+
+  /* ---------- footer ---------- */
+  footer {
+    margin-top: auto; border-top: 1px solid rgba(30,41,59,.7);
+    padding: 1rem 0; color: var(--dim); font-size: .7rem;
+  }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: space-between; }
+
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  svg { vertical-align: middle; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page">
+    <div class="head-row">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">&#9889;</div>
+        <div>
+          <h1>TeraFast · Activity Dashboard</h1>
+          <p class="sub">Telegram &rarr; TeraBox uploader ka live activity log</p>
+        </div>
+      </div>
+      <div class="controls">
+        <span class="pill" id="statusPill" role="status" aria-live="polite">
+          <span class="dot"></span><span id="statusText">Connecting</span>
+        </span>
+        <button class="btn" id="pauseBtn" aria-label="Pause polling">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" id="pauseIcon"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+          <span id="pauseLabel">Pause</span>
+        </button>
+        <button class="btn" id="refreshBtn" aria-label="Refresh logs now">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" id="refreshIcon"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+          Refresh
+        </button>
+      </div>
+    </div>
+    <p class="updated" id="updatedLine">Loading&hellip;</p>
+  </header>
+
+  <section class="stats" aria-label="Activity summary">
+    <div class="stat uploads">
+      <div class="label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m8 17 4-4 4 4"/></svg>Uploads</div>
+      <div class="value" id="statUploads">&mdash;</div>
+    </div>
+    <div class="stat failed">
+      <div class="label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="m9 15 6-6"/><path d="m9 9 6 6"/></svg>Upload failures</div>
+      <div class="value" id="statFailed">&mdash;</div>
+    </div>
+    <div class="stat network">
+      <div class="label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="m2 2 20 20"/></svg>Network errors</div>
+      <div class="value" id="statNetwork">&mdash;</div>
+    </div>
+    <div class="stat last">
+      <div class="label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg>Last activity</div>
+      <div class="value" id="statLast">&mdash;</div>
+    </div>
+  </section>
+
+  <div class="filters" role="group" aria-label="Log filters">
+    <button class="chip active" data-type="all">All<span class="count" data-count="all"></span></button>
+    <button class="chip" data-type="upload">Uploads<span class="count" data-count="upload"></span></button>
+    <button class="chip" data-type="upload_failed">Failures<span class="count" data-count="upload_failed"></span></button>
+    <button class="chip" data-type="network_error">Network errors<span class="count" data-count="network_error"></span></button>
+    <button class="chip" data-type="info">Info<span class="count" data-count="info"></span></button>
+  </div>
+
+  <section class="panel" aria-label="Activity log">
+    <div class="panel-head">
+      <span class="live-tag"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.2 19.1 19.1"/></svg>
+        Latest activity</span>
+      <span class="mono" style="font-size:.68rem;color:var(--dim)" id="uptimeLine"></span>
+    </div>
+    <ul class="feed" id="feed" aria-live="polite"></ul>
+    <div class="empty" id="emptyState" hidden>
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+      <p id="emptyText">Abhi koi activity nahi. Bot kuch upload karega to yahan dikhega.</p>
+    </div>
+    <div id="skeletons">
+      <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+    </div>
+  </section>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>TeraFast v2.3 &middot; built-in dashboard</span>
+    <span>Polls /api/logs every 5s &middot; file uploads &amp; network errors</span>
+  </div>
+</footer>
+
+<script>
+"use strict";
+(function () {
+  var POLL_MS = 5000;
+  var TYPE_LABEL = {
+    upload: "Upload",
+    upload_failed: "Upload failed",
+    network_error: "Network error",
+    info: "Info"
+  };
+  var TYPE_ICON = {
+    upload: '<path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m8 17 4-4 4 4"/>',
+    upload_failed: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="m9 15 6-6"/><path d="m9 9 6 6"/>',
+    network_error: '<path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="m2 2 20 20"/>',
+    info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>'
+  };
+
+  var state = {
+    filter: "all",
+    live: true,
+    loading: true,
+    error: null,
+    lastUpdated: null,
+    events: [],
+    stats: null,
+    flashIds: {},
+    prevMaxId: 0,
+    token: null
+  };
+
+  var qs = new URLSearchParams(window.location.search);
+  state.token = qs.get("token") || null;
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function apiPath() {
+    var p = "/api/logs?limit=100";
+    if (state.filter !== "all") p += "&type=" + encodeURIComponent(state.filter);
+    if (state.token) p += "&token=" + encodeURIComponent(state.token);
+    return p;
+  }
+  function timeAgo(iso) {
+    var t = Date.parse(iso);
+    if (isNaN(t)) return "";
+    var s = Math.max(0, (Date.now() - t) / 1000);
+    if (s < 10) return "just now";
+    if (s < 60) return Math.floor(s) + "s ago";
+    if (s < 3600) return Math.floor(s / 60) + "m ago";
+    if (s < 86400) return Math.floor(s / 3600) + "h ago";
+    return Math.floor(s / 86400) + "d ago";
+  }
+  function humanSize(n) {
+    if (!n || n <= 0) return "";
+    var units = ["B", "KB", "MB", "GB", "TB"], v = n, i = 0;
+    while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+    return (v >= 100 ? Math.round(v) : v.toFixed(1)) + " " + units[i];
+  }
+  function fullTime(iso) {
+    var t = Date.parse(iso);
+    return isNaN(t) ? "" : new Date(t).toLocaleString();
+  }
+
+  function fetchLogs(silent) {
+    if (!silent) { state.loading = true; renderStatus(); }
+    fetch(apiPath(), { cache: "no-store" })
+      .then(function (r) {
+        if (!r.ok) throw new Error("backend responded " + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data.ok) throw new Error("backend error");
+        var maxId = 0;
+        for (var i = 0; i < data.events.length; i++)
+          maxId = Math.max(maxId, data.events[i].id);
+        state.flashIds = {};
+        if (state.prevMaxId > 0 && maxId > state.prevMaxId) {
+          for (var j = 0; j < data.events.length; j++)
+            if (data.events[j].id > state.prevMaxId)
+              state.flashIds[data.events[j].id] = true;
+        }
+        state.prevMaxId = Math.max(state.prevMaxId, maxId);
+        state.events = data.events;
+        state.stats = data.stats;
+        state.error = null;
+        state.loading = false;
+        state.lastUpdated = new Date();
+        renderAll();
+      })
+      .catch(function (err) {
+        state.error = err && err.message ? err.message : "connection failed";
+        state.loading = false;
+        renderAll();
+      });
+  }
+
+  function renderStatus() {
+    var pill = $("statusPill"), text = $("statusText");
+    pill.className = "pill";
+    if (state.error) { pill.classList.add("err"); text.textContent = "Reconnecting"; }
+    else if (state.live) { pill.classList.add("live"); text.textContent = "Live"; }
+    else { text.textContent = "Paused"; }
+    var line = state.error
+      ? "Backend se connect nahi ho pa raha (" + esc(state.error) + ") — retry every " + (POLL_MS / 1000) + "s"
+      : state.lastUpdated
+        ? "Last updated " + timeAgo(state.lastUpdated.toISOString()) + " · polling every " + (POLL_MS / 1000) + "s"
+        : "Loading…";
+    $("updatedLine").innerHTML = line;
+    $("refreshIcon").style.animation = state.loading ? "pulse .9s infinite" : "";
+  }
+
+  function renderStats() {
+    var s = state.stats;
+    $("statUploads").textContent = s ? s.uploads : "—";
+    $("statFailed").textContent = s ? s.upload_failed : "—";
+    $("statNetwork").textContent = s ? s.network_errors : "—";
+    $("statLast").textContent = s && s.last_event_at ? timeAgo(s.last_event_at) : "—";
+    $("uptimeLine").textContent = s ? "uptime " + fmtUptime(s.uptime_sec) : "";
+    var counts = { all: s ? s.total : 0, upload: s ? s.uploads : 0,
+      upload_failed: s ? s.upload_failed : 0, network_error: s ? s.network_errors : 0, info: s ? s.infos : 0 };
+    document.querySelectorAll("[data-count]").forEach(function (el) {
+      var n = counts[el.getAttribute("data-count")] || 0;
+      el.textContent = n > 0 ? String(n) : "";
+    });
+  }
+
+  function fmtUptime(sec) {
+    if (!sec && sec !== 0) return "";
+    if (sec < 60) return sec + "s";
+    if (sec < 3600) return Math.floor(sec / 60) + "m";
+    if (sec < 86400) return Math.floor(sec / 3600) + "h " + Math.floor((sec % 3600) / 60) + "m";
+    return Math.floor(sec / 86400) + "d " + Math.floor((sec % 86400) / 3600) + "h";
+  }
+
+  function eventRow(e) {
+    var li = document.createElement("li");
+    li.className = "event" + (state.flashIds[e.id] ? " flash" : "");
+    var meta = [];
+    var tag = '<span class="tag ' + esc(e.type) + '">' + TYPE_LABEL[e.type] + "</span>";
+    meta.push(tag);
+    if (e.file_name) meta.push('<span class="fname mono" title="' + esc(e.file_name) + '">' + esc(e.file_name) + "</span>");
+    var size = humanSize(e.file_size);
+    if (size) meta.push("<span>" + esc(size) + "</span>");
+    if (e.target) meta.push("<span>· " + esc(e.target) + "</span>");
+    if (e.duration_sec != null && e.duration_sec > 0)
+      meta.push("<span>· " + Math.round(e.duration_sec) + "s</span>");
+    if (e.source) meta.push('<span class="src">' + esc(e.source) + "</span>");
+    if (e.link)
+      meta.push('<a class="tlink" href="' + esc(e.link) + '" target="_blank" rel="noopener noreferrer">TeraBox link ↗<span class="sr-only"> (opens in new tab)</span></a>');
+    li.innerHTML =
+      '<div class="ebox ' + esc(e.type) + '" aria-hidden="true">' +
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        TYPE_ICON[e.type] + "</svg></div>" +
+      '<div class="ebody"><p class="emsg">' + esc(e.message) + "</p>" +
+      '<div class="emeta">' + meta.join("") + "</div>" +
+      (e.error ? '<p class="eerr mono" title="' + esc(e.error) + '">' + esc(e.error) + "</p>" : "") +
+      "</div>" +
+      '<time class="etime" datetime="' + esc(e.created_at) + '" title="' + esc(fullTime(e.created_at)) + '">' +
+      esc(timeAgo(e.created_at)) + "</time>";
+    return li;
+  }
+
+  function renderFeed() {
+    var feed = $("feed"), empty = $("emptyState"), skel = $("skeletons");
+    feed.innerHTML = "";
+    if (state.loading && state.events.length === 0 && !state.error) {
+      skel.hidden = false; empty.hidden = true; return;
+    }
+    skel.hidden = true;
+    if (state.events.length === 0) {
+      empty.hidden = false;
+      $("emptyText").textContent = state.error
+        ? "Backend reachable nahi hai — bot process chalu hai?"
+        : state.filter === "all"
+          ? "Abhi koi activity nahi. Bot kuch upload karega to yahan dikhega."
+          : "Is filter me koi event nahi mila.";
+      return;
+    }
+    empty.hidden = true;
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < state.events.length; i++) frag.appendChild(eventRow(state.events[i]));
+    feed.appendChild(frag);
+  }
+
+  function renderAll() { renderStatus(); renderStats(); renderFeed(); }
+
+  /* ---------- controls ---------- */
+  document.querySelectorAll(".chip").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      document.querySelectorAll(".chip").forEach(function (c) { c.classList.remove("active"); });
+      chip.classList.add("active");
+      state.filter = chip.getAttribute("data-type");
+      state.prevMaxId = 0;
+      fetchLogs(false);
+    });
+  });
+
+  $("pauseBtn").addEventListener("click", function () {
+    state.live = !state.live;
+    $("pauseLabel").textContent = state.live ? "Pause" : "Resume";
+    $("pauseBtn").setAttribute("aria-label", state.live ? "Pause polling" : "Resume polling");
+    $("pauseIcon").innerHTML = state.live
+      ? '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>'
+      : '<polygon points="6 3 20 12 6 21 6 3"/>';
+    renderStatus();
+  });
+
+  $("refreshBtn").addEventListener("click", function () { fetchLogs(false); });
+
+  setInterval(function () { if (state.live) fetchLogs(true); }, POLL_MS);
+  // Relative times ko fresh rakhne ke liye halka re-render jab idle ho.
+  setInterval(function () { if (!state.loading) renderFeed(); }, 30000);
+
+  fetchLogs(false);
+})();
+</script>
+</body>
+</html>
